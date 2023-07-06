@@ -1,9 +1,11 @@
 ---
-title: "Recerca i Avaluació de models de predicció per estimar el 
- Carboni Aeri Total a partir de dades LIDAR a Andorra"
+title: Recerca i Avaluació de models de predicció per estimar el Carboni Aeri Total
+  a partir de dades LIDAR a Andorra
 author: "Jordi ORDOÑEZ ADELLACH"
 date: "5/30/2023"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -172,7 +174,7 @@ paràmetres es podrien optimitzar seguint el mateix procediment que hem utilitza
 per mtry i ntree òptim, però no esperem una millora substàncial, però deixem la 
 porta oberta.
 
-```{r include=FALSE,cache=TRUE,fig.cap="IMportància dels predictors"}
+```{r echo=FALSE,cache=TRUE,fig.cap="Importància dels predictors"}
 data.rf <- randomForest(CAT ~ .,
   data = Train,
   importance = TRUE, ntree = 2500, mtry = 2,
@@ -190,7 +192,7 @@ plt <- ggplot(df) +
 plt
 ```
 
-
+També podem veure quins predictors han agafat més importància en el model.
 
 
 ```{r include=FALSE,cache=TRUE}
@@ -245,4 +247,83 @@ sobre les mateixes parceles del test set : `r op(sum(predicted),0)` desviació d
 
 ## 4. Aplicació del model
 
-A l'espera de les dades LIDAR sobre la resta del territori.
+Disposem de dades LIDAR per mallatge cuadrats de 20mx20m als cuals s'ha afegit 
+els estrats de vegetació.
+Per tot el territori Andorrà. Identifiquem els noms necessaris del nostre model 
+random forest escollit de entre tots els disponibles i efectuem un treball de
+càlcul i associació (eliminem les dades Estrat =BBR del que no disposàvem i 
+modifiquem els retorns 4 buits o erronmis per valor 0) I afegim també la 
+superficie d'aquestes cuadrats.
+
+```{r,cache=TRUE}
+data1 <- read.csv("metriques1.csv", header = TRUE, sep = ";", dec = ".")
+nomsnecessaris <- rownames(importance)
+nomsdisp <- names(data1)
+
+head(nomsnecessaris)
+head(nomsdisp)
+# Les substituim per "0" i transformem en numeric
+data1$Return.4.c[data1$Return.4.c == ""] <- "0"
+data1$Return.4.c[data1$Return.4.c == "false"] <- "0"
+data1$Return.4.c <- as.numeric(data1$"Return.4.c")
+
+# suprimim els "BBR" de habitats
+data1 <- data1[data1$Habitat != "BBR", ]
+
+# creem la nova taula
+df <- data.frame(
+  center.X = data1$center.X,
+  center.Y = data1$center.Y,
+  Habitat = data1$Habitat,
+  R1C = data1$Return.1.c,
+  R2C = data1$Return.2.c,
+  R3C = data1$Return.3.c,
+  R4C = data1$Return.4.c,
+  TR = data1$TR,
+  P10 = data1$Elev.P10,
+  P25 = data1$Elev.P25,
+  P50 = data1$Elev.P50,
+  P75 = data1$Elev.P75,
+  P99 = data1$Elev.P99,
+  ELEVMIN = data1$Elev.minim,
+  ELEVMAX = data1$Elev.maxim,
+  IQ = data1$IQ,
+  KURTO = data1$Elev.kurto,
+  superficie = rep(400, length(data1$Elev.kurto)),
+  CV = data1$CV,
+  ARM = data1$Percenta_2,
+  CRR = data1$Percenta_4 / 100
+)
+
+
+# afegim els calculats LFCC no es logaritme FCC!
+
+df1 <- data.frame(df,
+  LFCC = 100 * df$R1C / (df$TR),
+  RMH = df$P50 / df$ELEVMAX,
+  P99P75 = df$P99 - df$P75,
+  P75P50 = df$P99 - df$P75,
+  P50P25 = df$P50 - df$P25
+)
+
+df1$Habitat <- as.factor(df1$Habitat)
+
+```
+
+Ja podem fer correr el nostre model sobre aquestes dades per predir CAT i els 
+afegim a un fitxer de sortida csv que conté les coordenades dels centres dels
+cuadrats de la malla associats als valor del CAT predit, que ja es pot tractar
+amb QGIS.
+
+```{r,cache=TRUE}
+predicted <- predict(data.rf, df1[nomsnecessaris])
+result <- data.frame(
+  X = df1$center.X,
+  Y = df1$center.Y,
+  CAT = as.vector(predicted)
+)
+result2 <- result[!is.na(result$CAT), ]
+head(result2)
+write.csv(result2, "CAT_Jordi_01_07_23.csv", row.names = TRUE)
+
+```

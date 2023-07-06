@@ -460,7 +460,79 @@ Predicted vs Real
 </div>
 <div id="aplicació-del-model" class="section level2">
 <h2>4. Aplicació del model</h2>
-<p>A l’espera de les dades LIDAR sobre la resta del territori.</p>
+<p>Disposem de dades LIDAR per mallatge cuadrats de 20mx20m als cuals s’ha afegit els estrats de vegetació. Per tot el territori Andorrà. Identifiquem els noms necessaris del nostre model random forest escollit de entre tots els disponibles i efectuem un treball de càlcul i associació (eliminem les dades Estrat =BBR del que no disposàvem i modifiquem els retorns 4 buits o erronmis per valor 0) I afegim també la superficie d’aquestes cuadrats.</p>
+<pre class="r"><code>data1 &lt;- read.csv(&quot;metriques1.csv&quot;, header = TRUE, sep = &quot;;&quot;, dec = &quot;.&quot;)
+nomsnecessaris &lt;- rownames(importance)
+nomsdisp &lt;- names(data1)
+
+head(nomsnecessaris)</code></pre>
+<pre><code>## [1] &quot;TR&quot;         &quot;R4C&quot;        &quot;superficie&quot; &quot;R2C&quot;        &quot;R3C&quot;       
+## [6] &quot;Habitat&quot;</code></pre>
+<pre class="r"><code>head(nomsdisp)</code></pre>
+<pre><code>## [1] &quot;row&quot;        &quot;center.X&quot;   &quot;center.Y&quot;   &quot;TR&quot;         &quot;Elev.minim&quot;
+## [6] &quot;Elev.maxim&quot;</code></pre>
+<pre class="r"><code># Les substituim per &quot;0&quot; i transformem en numeric
+data1$Return.4.c[data1$Return.4.c == &quot;&quot;] &lt;- &quot;0&quot;
+data1$Return.4.c[data1$Return.4.c == &quot;false&quot;] &lt;- &quot;0&quot;
+data1$Return.4.c &lt;- as.numeric(data1$&quot;Return.4.c&quot;)
+
+# suprimim els &quot;BBR&quot; de habitats
+data1 &lt;- data1[data1$Habitat != &quot;BBR&quot;, ]
+
+# creem la nova taula
+df &lt;- data.frame(
+  center.X = data1$center.X,
+  center.Y = data1$center.Y,
+  Habitat = data1$Habitat,
+  R1C = data1$Return.1.c,
+  R2C = data1$Return.2.c,
+  R3C = data1$Return.3.c,
+  R4C = data1$Return.4.c,
+  TR = data1$TR,
+  P10 = data1$Elev.P10,
+  P25 = data1$Elev.P25,
+  P50 = data1$Elev.P50,
+  P75 = data1$Elev.P75,
+  P99 = data1$Elev.P99,
+  ELEVMIN = data1$Elev.minim,
+  ELEVMAX = data1$Elev.maxim,
+  IQ = data1$IQ,
+  KURTO = data1$Elev.kurto,
+  superficie = rep(400, length(data1$Elev.kurto)),
+  CV = data1$CV,
+  ARM = data1$Percenta_2,
+  CRR = data1$Percenta_4 / 100
+)
+
+
+# afegim els calculats LFCC no es logaritme FCC!
+
+df1 &lt;- data.frame(df,
+  LFCC = 100 * df$R1C / (df$TR),
+  RMH = df$P50 / df$ELEVMAX,
+  P99P75 = df$P99 - df$P75,
+  P75P50 = df$P99 - df$P75,
+  P50P25 = df$P50 - df$P25
+)
+
+df1$Habitat &lt;- as.factor(df1$Habitat)</code></pre>
+<p>Ja podem fer correr el nostre model sobre aquestes dades per predir CAT i els afegim a un fitxer de sortida csv que conté les coordenades dels centres dels cuadrats de la malla associats als valor del CAT predit, que ja es pot tractar amb QGIS.</p>
+<pre class="r"><code>predicted &lt;- predict(data.rf, df1[nomsnecessaris])
+result &lt;- data.frame(
+  X = df1$center.X,
+  Y = df1$center.Y,
+  CAT = as.vector(predicted)
+)
+result2 &lt;- result[!is.na(result$CAT), ]
+head(result2)</code></pre>
+<pre><code>##        X     Y      CAT
+## 1 532840 27360 47.10708
+## 2 532860 27360 53.93316
+## 3 532880 27360 76.09020
+## 4 532840 27340 53.97923
+## 5 532860 27340 71.86452
+## 6 532960 27340 63.86864</code></pre>
+<pre class="r"><code>write.csv(result2, &quot;CAT_Jordi_01_07_23.csv&quot;, row.names = TRUE)</code></pre>
 </div>
 
 
