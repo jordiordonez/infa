@@ -256,7 +256,7 @@ modifiquem els retorns 4 buits o erronmis per valor 0) I afegim també la
 superficie d'aquestes cuadrats.
 
 ```{r,cache=TRUE}
-data1 <- read.csv("metriques1.csv", header = TRUE, sep = ";", dec = ".")
+data1 <- read.csv("metric.csv", header = TRUE, sep = ";", dec = ".")
 nomsnecessaris <- rownames(importance)
 nomsdisp <- names(data1)
 
